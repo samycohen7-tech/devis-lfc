@@ -2187,7 +2187,8 @@ function telIntl(t){let d=String(t||"").replace(/[^\d+]/g,"");if(/^0[1-9]\d{8}$/
 /* Vérifie que la clé de dépôt peut réellement écrire dans « LFC Signatures » (enregistrement d’essai créé puis supprimé) */
 async function testDepot(tok){let r;
   try{r=await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}`,{method:"POST",headers:{Authorization:"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify({records:[{fields:{Lien:"test-"+Date.now(),Nom:"Test de l’outil (à supprimer)"}}]})})}
-  catch(e){return "Pas de connexion internet."}
+  catch(e){return navigator.onLine===false?"Pas de connexion internet."
+    :"Airtable refuse la clé « dépôt de signature ». Sur airtable.com/create/tokens, ouvrez cette clé : il faut le droit « data.records:write » ET la base « LFC Signatures » dans « Access », puis « Save changes »."}
   if(r.ok){try{const j=await r.json();const id=j.records&&j.records[0]&&j.records[0].id;if(id)await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}/${id}`,{method:"DELETE",headers:{Authorization:"Bearer "+tok}})}catch(e){}return ""}
   let t="";try{const j=await r.json();t=(j.error&&(j.error.type||j.error))||""}catch(e){}
   if(r.status===401)return "La clé « dépôt de signature » est invalide (mal copiée ou supprimée). Recréez-la et collez-la à l’étape 1.";
@@ -2273,7 +2274,8 @@ async function sendRemote(sig,btn,err){btn.disabled=true;btn.textContent="Envoi 
     S.contrat.dateSign=dShort(todayIso());S.signature=sig;try{localStorage.setItem("lfc_signe_"+REMOTE.id,JSON.stringify(sig))}catch(e){}
     closeModal();clientDone()}
   catch(e){btn.disabled=false;btn.textContent="Signer le contrat";
-    err(!e.status?"La signature n’a pas pu être envoyée. Vérifiez votre connexion internet et réessayez."
+    err(!e.status&&navigator.onLine===false?"Pas de connexion internet : vérifiez votre réseau et réessayez."
+      :!e.status?"La signature n’a pas pu être enregistrée : ce lien n’est pas encore activé. Prévenez Les Frères Cohen, ils vous enverront un nouveau lien."
       :e.status===401||e.status===403||e.status===404?"Ce lien de signature n’est pas encore activé (erreur "+e.status+"). Prévenez Les Frères Cohen, ils vous enverront un nouveau lien."
       :"La signature n’a pas pu être enregistrée (erreur "+e.status+(e.message?" · "+e.message:"")+"). Réessayez dans un instant.")}}
 function clientDone(){renderContratPreview();const b=$("clientBar");if(b)b.innerHTML=`<div class="cdone">✓ Contrat signé. Merci ${esc(S.signature.nom)} !<small>Les Frères Cohen ont bien reçu votre signature et vous enverront votre exemplaire.</small></div>`;
