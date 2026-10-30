@@ -2,7 +2,7 @@
 <title>Devis LFC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Allura&family=Great+Vibes&family=Herr+Von+Muellerhoff&family=Mrs+Saint+Delafield&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap">
 <style>
 /* Layout: barre navy LFC en tête, onglets Devis / Contrat, éditeur à gauche + récapitulatif collant à droite, aperçu papier en dessous */
 :root{
@@ -498,6 +498,11 @@ html.signer-mode main{padding-bottom:120px}
 #clientBar .btn{width:min(520px,100%);justify-content:center;font-size:18px;padding:14px;background:#fff;color:#1B3157;border-color:#fff}
 #clientBar .cdone{color:#fff;font-weight:700;font-size:17px;text-align:center;display:flex;flex-direction:column}
 #clientBar .cdone small{font-weight:400;font-size:13px;opacity:.85}
+.sigstyles.one{grid-template-columns:1fr}.sigstyles.one .sigstyle{cursor:default;min-height:120px}.sigstyles.one .sigstyle span{font-size:40px}.sigstyles.one .sigstyle em{font-size:24px}
+#lfcModal .seg.sigalt{display:flex;justify-content:center;border:0;gap:6px}#lfcModal .seg.sigalt button{border:1px solid var(--line);border-radius:5px;font-size:13px;padding:6px 10px}
+#lfcModal .seg.cfseg{display:grid;grid-template-columns:repeat(4,1fr)}#lfcModal .seg.cfseg button{padding:8px 4px;font-size:13px}
+.cpill{display:inline-block;border-radius:10px;padding:1px 8px;font-size:12px;font-weight:700;margin-right:4px}
+.c-signe{background:#E3F4EA;color:#1F7A4D}.c-attente{background:#FFF4D6;color:#8A6200}.c-envoye{background:#E6EEF9;color:#1F4E8C}.c-brouillon{background:var(--surface-2);color:var(--muted)}
 .sigok-btn{width:100%;justify-content:center;padding:12px;font-size:16px}
 .steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:14px}.steps li{line-height:1.6}
 #netDot{width:9px;height:9px;border-radius:50%;background:#9AA8C2;display:inline-block;margin-right:6px;vertical-align:middle}
@@ -514,6 +519,7 @@ html.signer-mode main{padding-bottom:120px}
   <span class="save-state" id="saveState"></span>
   <button class="hbtn" id="btnAt" type="button" title="Connexion à la base Airtable partagée"><span id="netDot"></span>Base partagée</button>
   <button class="hbtn" id="btnList" type="button" title="Rechercher un devis (Ctrl/⌘ + K)">Mes devis</button>
+  <button class="hbtn" id="btnContrats" type="button" title="Historique des contrats">Mes contrats</button>
   <button class="hbtn" id="btnDup" type="button">Dupliquer</button>
   <button class="hbtn solid" id="btnNew" type="button">+ Nouveau devis</button>
 </header>
@@ -2026,7 +2032,7 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal()});
 
 /* ---------- Signature sur place ---------- */
 /* Polices manuscrites libres de droits (Google Fonts) proposées pour la signature tapée */
-const SIG_FONTS=[["Mrs Saint Delafield","Élégante"],["Herr Von Muellerhoff","Plume"],["Great Vibes","Calligraphie"],["Allura","Classique"]];
+const SIG_FONTS=[["Great Vibes","Aperçu de votre signature"]];
 function sigFont(i){return `"${SIG_FONTS[i][0]}", "Segoe Script", "Brush Script MT", cursive`}
 /* Dessine le nom en écriture manuscrite sur un canevas (haute définition, fond transparent) */
 const BPA="Bon pour accord";
@@ -2042,15 +2048,15 @@ function openPad(){const c=S.client;const nom=c.type==="pro"?(c.nom||c.dirigeant
      <button type="button" class="bpa-btn" id="bpaBtn" aria-pressed="false"><span class="bpa-tick" aria-hidden="true">✓</span><em id="bpaTxt" style="font-family:${esc(sigFont(sigFi))}">Bon pour accord</em><small>J’ai lu et j’approuve le contrat d’engagement</small></button>
      <input type="checkbox" id="sigLu" hidden></div>
    <div class="f"><label for="sigNom">2. Écrivez votre nom pour signer</label><input id="sigNom" type="text" value="${esc(nom)}" placeholder="Prénom Nom" autocomplete="name" autocapitalize="words"></div>
-   <div class="seg" role="group" aria-label="Façon de signer"><button type="button" id="smType" aria-pressed="${sigMode==="type"}">✒ Écriture manuscrite</button><button type="button" id="smDraw" aria-pressed="${sigMode==="draw"}">✍ Dessiner au doigt</button></div>
    <div id="sgType" ${sigMode==="type"?"":"hidden"}>
-     <div class="sigstyles" id="sigStyles"></div>
+     <div class="sigstyles one" id="sigStyles"></div>
    </div>
    <div id="sgDraw" ${sigMode==="draw"?"":"hidden"}>
      <canvas id="sigPad"></canvas>
      <button class="btn sm ghost" type="button" id="sigClr">Recommencer</button>
    </div>
    <button class="btn primary sigok-btn" type="button" id="sigOk">Signer le contrat</button>
+   <div class="seg sigalt" role="group" aria-label="Façon de signer"><button type="button" id="smType" aria-pressed="${sigMode==="type"}">✒ Signature écrite</button><button type="button" id="smDraw" aria-pressed="${sigMode==="draw"}">✍ Dessiner au doigt</button></div>
    <div class="msg" id="sigMsg"></div>`,true);
   /* --- signature tapée --- */
   function styles(){const n=$("sigNom").value.trim()||"Votre nom";
@@ -2239,7 +2245,7 @@ async function checkRemote(manual){if(REMOTE||checking||!atToken()||typeof LIST=
       d.contrat=d.contrat||{};d.contrat.dateSign=dShort(isoOf(new Date(at)));d.statut="confirme";
       if(d===S){touch();refresh();if(!$("pContrat").hidden)renderContrat()}else{await saveDevisObj(d)}
       try{syncDevisEvent(d)}catch(e){}
-      setSave("✍ "+f.Nom+" a signé le contrat "+(d.numero||""));
+      setSave("✍ "+f.Nom+" a signé le contrat "+(d.numero||""));renderContrats();
       const cm=$("cMsg");if(cm&&d===S){cm.className="msg ok";cm.textContent="✍ "+f.Nom+" vient de signer le contrat à distance · l’affaire passe en « Confirmé ». Envoyez-lui son exemplaire par mail."}}
   }catch(e){if(manual)remoteErr="Vérification impossible pour le moment ("+e.message+").";}
   finally{checking=false;if(manual||!$("pContrat").hidden)renderSignCard()}}
@@ -2267,6 +2273,47 @@ async function startClient(){document.documentElement.classList.add("signer-mode
   showTab("contrat");
   let done=null;try{done=JSON.parse(localStorage.getItem("lfc_signe_"+REMOTE.id)||"null")}catch(e){}
   if(done){S.signature=done;clientDone()}}
+
+/* =====================================================================
+   Historique des contrats : tous les contrats, signés ou non, avec leur état
+   ===================================================================== */
+const CST={signe:"Signé",attente:"En attente de signature",envoye:"Envoyé, non signé",brouillon:"Non signé"};
+function aUnContrat(d){return !!(d.signature||d.signLink||d.adobe||(d.envois||[]).some(e=>e.type==="contrat")||Object.keys(d.contrat||{}).length||["option","confirme"].includes(d.statut))}
+function etatContrat(d){
+  if(d.signature){const m=sigState(d).modifie;return {k:"signe",t:`le ${nowTxt(d.signature.at)} · ${d.signature.distance?"à distance":"sur place"}${m?" · ⚠ modifié après signature":""}`}}
+  if(d.signLink)return {k:"attente",t:`lien envoyé le ${nowTxt(d.signLink.at)}`};
+  if(d.adobe)return {k:"attente",t:`envoyé à Adobe le ${nowTxt(d.adobe.at)}`};
+  const e=(d.envois||[]).filter(x=>x.type==="contrat").slice(-1)[0];
+  if(e)return {k:"envoye",t:`par mail le ${nowTxt(e.at)}${e.to?" à "+e.to:""}`};
+  return {k:"brouillon",t:"pas encore envoyé"}}
+let CF_FILTRE="tous",CF_Q="";
+function tousLesContrats(){const m=new Map();LIST.forEach(d=>m.set(d.id,d));if(S)m.set(S.id,S);
+  return [...m.values()].filter(d=>!d.hidden&&aUnContrat(d)).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))}
+function openContrats(){
+  modal(`<div class="row"><h2 style="margin:0">Mes contrats</h2><span style="margin-left:auto"></span><button class="btn sm" type="button" data-sig="close">Fermer</button></div>
+   <input type="text" id="cfQ" placeholder="Rechercher un client, un lieu, un numéro…" value="${esc(CF_Q)}">
+   <div class="seg cfseg" id="cfSeg" role="group" aria-label="Filtrer"></div>
+   <div class="dlist" id="cfList"></div>`,true);
+  $("cfQ").oninput=e=>{CF_Q=e.target.value;renderContrats()};
+  $("cfSeg").onclick=e=>{const b=e.target.closest("[data-cf]");if(b){CF_FILTRE=b.dataset.cf;renderContrats()}};
+  renderContrats();checkRemote()}
+function renderContrats(){if(!$("cfList"))return;const L=tousLesContrats();const cnt={tous:L.length,signe:0,attente:0,nonsigne:0};
+  L.forEach(d=>{const k=etatContrat(d).k;if(k==="signe")cnt.signe++;else if(k==="attente")cnt.attente++;else cnt.nonsigne++});
+  $("cfSeg").innerHTML=[["tous","Tous"],["signe","Signés"],["attente","En attente"],["nonsigne","Non signés"]].map(([k,l])=>`<button type="button" data-cf="${k}" aria-pressed="${CF_FILTRE===k}">${l} <span class="cnt">${cnt[k]}</span></button>`).join("");
+  const q=CF_Q.trim().toLowerCase();
+  const rows=L.filter(d=>{const k=etatContrat(d).k;return (CF_FILTRE==="tous"||(CF_FILTRE==="nonsigne"?["envoye","brouillon"].includes(k):k===CF_FILTRE))&&(!q||[d.numero,clientLabel(d),d.client.lieu,d.client.email].join(" ").toLowerCase().includes(q))});
+  $("cfList").innerHTML=rows.length?rows.map(d=>{const e=etatContrat(d),k=calc(d);return `<div class="ditem ${d.id===S.id?"cur":""}">
+    <div><div class="t">${esc(clientLabel(d)||"Client à renseigner")}</div>
+     <div class="s num">${esc(d.numero)} · ${d.client.date?dShort(d.client.date):"date à définir"}${d.client.lieu?" · "+esc(d.client.lieu):""} · ${fmtE(k.ht)} HT</div>
+     <div class="s"><span class="cpill c-${e.k}">${CST[e.k]}</span> ${esc(e.t)}</div></div>
+    <div class="row"><button class="btn sm primary" type="button" data-cfo="${d.id}">Ouvrir</button><button class="btn sm" type="button" data-cfp="${d.id}">PDF</button></div></div>`}).join("")
+    :`<div class="hint">${L.length?"Aucun contrat pour ce filtre.":"Aucun contrat pour l’instant. Un contrat apparaît ici dès que vous le préparez, l’envoyez ou le faites signer."}</div>`}
+function ouvrirContrat(id){const d=LIST.find(x=>x.id===id)||(S.id===id?S:null);if(!d)return;
+  if(S.id!==id){saveNow();S=migrate(clone(d));renderAll()}closeModal();showTab("contrat")}
+document.addEventListener("click",e=>{const o=e.target.closest("[data-cfo]"),pdf=e.target.closest("[data-cfp]");
+  if(o)ouvrirContrat(o.dataset.cfo);
+  if(pdf){ouvrirContrat(pdf.dataset.cfp);setTimeout(exportContratPdf,50)}});
+if($("btnContrats"))$("btnContrats").onclick=openContrats;
 
 if(/^#s=/.test(location.hash))startClient();
 else{setInterval(()=>{if(!document.hidden)checkRemote()},45000);
