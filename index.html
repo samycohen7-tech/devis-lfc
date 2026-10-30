@@ -2251,7 +2251,8 @@ async function checkRemote(manual){if(REMOTE||checking||!atToken()||typeof LIST=
   checking=true;
   try{const ids=[...all.values()].map(d=>`{Lien}='${d.signLink.id}'`);
     const r=await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}?filterByFormula=${encodeURIComponent("OR("+ids.join(",")+")")}`,{headers:{Authorization:"Bearer "+atToken()}});
-    if(r.status===401||r.status===403){remoteErr="Votre clé principale n’a pas accès à la base « LFC Signatures » (bouton « Envoyer un lien de signature » → étape 2).";if(manual)renderSignCard();return}
+    if(r.status===401||r.status===403||r.status===404){remoteErr="Signatures reçues non relevées : votre clé principale (celle de « LFC Devis ») n’a pas accès à la base « LFC Signatures ». Sur airtable.com/create/tokens, ouvrez cette clé → Access → « Add a base » → LFC Signatures → Save changes.";
+      setSave("⚠ Signatures à distance non relevées");renderSignCard();renderContrats();return}
     if(!r.ok)throw new Error("HTTP "+r.status);remoteErr="";
     for(const rec of (await r.json()).records||[]){const f=rec.fields;const d=[...all.values()].find(x=>x.id===f.Devis&&x.signLink.id===f.Lien&&x.signLink.sec===f.Secret);if(!d||d.signature)continue;
       let im={};try{im=JSON.parse(f.Signature)}catch(e){continue}
@@ -2313,11 +2314,12 @@ function openContrats(){
   modal(`<div class="row"><h2 style="margin:0">Mes contrats</h2><span style="margin-left:auto"></span><button class="btn sm" type="button" data-sig="close">Fermer</button></div>
    <input type="text" id="cfQ" placeholder="Rechercher un client, un lieu, un numéro…" value="${esc(CF_Q)}">
    <div class="seg cfseg" id="cfSeg" role="group" aria-label="Filtrer"></div>
+   <div class="msg err" id="cfErr" hidden></div>
    <div class="dlist" id="cfList"></div>`,true);
   $("cfQ").oninput=e=>{CF_Q=e.target.value;renderContrats()};
   $("cfSeg").onclick=e=>{const b=e.target.closest("[data-cf]");if(b){CF_FILTRE=b.dataset.cf;renderContrats()}};
   renderContrats();checkRemote()}
-function renderContrats(){if(!$("cfList"))return;const L=tousLesContrats();const cnt={tous:L.length,signe:0,attente:0,nonsigne:0};
+function renderContrats(){if(!$("cfList"))return;const ce=$("cfErr");if(ce){ce.hidden=!remoteErr;ce.textContent=remoteErr?"⚠ "+remoteErr:""}const L=tousLesContrats();const cnt={tous:L.length,signe:0,attente:0,nonsigne:0};
   L.forEach(d=>{const k=etatContrat(d).k;if(k==="signe")cnt.signe++;else if(k==="attente")cnt.attente++;else cnt.nonsigne++});
   $("cfSeg").innerHTML=[["tous","Tous"],["signe","Signés"],["attente","En attente"],["nonsigne","Non signés"]].map(([k,l])=>`<button type="button" data-cf="${k}" aria-pressed="${CF_FILTRE===k}">${l} <span class="cnt">${cnt[k]}</span></button>`).join("");
   const q=CF_Q.trim().toLowerCase();
