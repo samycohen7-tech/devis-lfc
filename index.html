@@ -2156,7 +2156,7 @@ function openAdobe(){const to=S.client.email||"";
 
 document.addEventListener("click",e=>{const b=e.target.closest("[data-sig],[data-act='mailDevis']");if(!b)return;
   if(b.dataset.act==="mailDevis")return openMail("devis");
-  switch(b.dataset.sig){case "pad":return openPad();case "link":return openLink();case "check":return checkRemote(true);case "adobe":return openAdobe();case "mailC":return openMail("contrat");case "close":return closeModal();
+  switch(b.dataset.sig){case "pad":return openPad();case "link":return openLink();case "setup":return linkSetup();case "check":return checkRemote(true);case "adobe":return openAdobe();case "mailC":return openMail("contrat");case "close":return closeModal();
     case "clear":if(confirm("Effacer la signature du client ?")){delete S.signature;touch();renderContrat()}return}});
 
 /* =====================================================================
@@ -2184,11 +2184,21 @@ function contratPourClient(d){const x=clone(d);["signature","envois","adobe","si
   x.formules=x.formules.filter(f=>f.id===x.choix);x.options=x.options.filter(o=>o.sel);return x}
 function telIntl(t){let d=String(t||"").replace(/[^\d+]/g,"");if(/^0[1-9]\d{8}$/.test(d))d="33"+d.slice(1);return d.replace(/^\+/,"").replace(/^00/,"")}
 
+/* Vérifie que la clé de dépôt peut réellement écrire dans « LFC Signatures » (enregistrement d’essai créé puis supprimé) */
+async function testDepot(tok){let r;
+  try{r=await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}`,{method:"POST",headers:{Authorization:"Bearer "+tok,"Content-Type":"application/json"},body:JSON.stringify({records:[{fields:{Lien:"test-"+Date.now(),Nom:"Test de l’outil (à supprimer)"}}]})})}
+  catch(e){return "Pas de connexion internet."}
+  if(r.ok){try{const j=await r.json();const id=j.records&&j.records[0]&&j.records[0].id;if(id)await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}/${id}`,{method:"DELETE",headers:{Authorization:"Bearer "+tok}})}catch(e){}return ""}
+  let t="";try{const j=await r.json();t=(j.error&&(j.error.type||j.error))||""}catch(e){}
+  if(r.status===401)return "La clé « dépôt de signature » est invalide (mal copiée ou supprimée). Recréez-la et collez-la à l’étape 1.";
+  if(r.status===403||r.status===404)return "La clé « dépôt de signature » n’a pas le droit d’écrire dans « LFC Signatures ». Sur airtable.com/create/tokens, ouvrez cette clé : droit « data.records:write » ET accès à la base « LFC Signatures », puis enregistrez. ("+t+")";
+  return "Airtable refuse l’envoi (erreur "+r.status+(t?" · "+t:"")+")."}
 async function openLink(){
   if(!atToken())return alert("Connectez-vous d’abord à la base partagée.");
   const p=modal(`<div class="row"><h2 style="margin:0">Lien de signature</h2><span style="margin-left:auto"></span><button class="btn sm" type="button" data-sig="close">Fermer</button></div><div class="msg">Préparation…</div>`,true);
   let tok="";try{tok=await cfgRead("sign_token")}catch(e){}
   if(!tok)return linkSetup();
+  const pb=await testDepot(tok);if(pb)return linkSetup(pb);
   const id=uid()+uid(),sec=uid()+uid(),c=S.client;
   const link=SITE+"#s="+await pack({v:1,id,sec,tok,d:contratPourClient(S),rib:RIB});
   S.signLink={id,sec,at:Date.now()};touch();renderSignCard();
@@ -2203,14 +2213,16 @@ async function openLink(){
      <a class="btn" id="lkMail" href="mailto:${encodeURIComponent(c.email||"")}?subject=${encodeURIComponent("Votre contrat Les Frères Cohen à signer")}&body=${encodeURIComponent(txt)}">✉ Mail</a>
      ${navigator.share?`<button class="btn" type="button" id="lkShare">Partager…</button>`:""}
      <button class="btn ghost" type="button" id="lkCopy">Copier le message</button>
-   </div><div class="msg" id="lkMsg"></div>`;
+   </div><div class="msg" id="lkMsg"></div>
+   <button class="btn sm ghost" type="button" data-sig="setup" style="align-self:flex-start">Réglages de la signature à distance</button>`;
   const say=x=>{const m=$("lkMsg");m.className="msg ok";m.textContent=x};
   const cur=()=>$("lkTxt").value;
   $("lkTxt").oninput=()=>{$("lkWa").href=`https://wa.me/${tel}?text=${encodeURIComponent(cur())}`;$("lkMail").href=`mailto:${encodeURIComponent(c.email||"")}?subject=${encodeURIComponent("Votre contrat Les Frères Cohen à signer")}&body=${encodeURIComponent(cur())}`};
   $("lkCopy").onclick=()=>navigator.clipboard.writeText(cur()).then(()=>say("Message copié : collez-le dans WhatsApp, SMS ou mail."));
   if($("lkShare"))$("lkShare").onclick=()=>navigator.share({text:cur()}).catch(()=>{});
 }
-function linkSetup(){const p=modal(`<div class="row"><h2 style="margin:0">Activer la signature à distance</h2><span style="margin-left:auto"></span><button class="btn sm" type="button" data-sig="close">Fermer</button></div>
+function linkSetup(pb){const p=modal(`<div class="row"><h2 style="margin:0">Activer la signature à distance</h2><span style="margin-left:auto"></span><button class="btn sm" type="button" data-sig="close">Fermer</button></div>
+   ${pb?`<div class="msg err" style="margin:0">⚠ ${esc(pb)}</div>`:""}
    <p class="hint" style="margin:0">À faire une seule fois (3 minutes). Les signatures arrivent dans une base séparée, « LFC Signatures », déjà créée dans votre Airtable.</p>
    <ol class="steps">
     <li><b>Créer la clé « dépôt de signature »</b><br>Sur <a href="https://airtable.com/create/tokens" target="_blank" rel="noopener">airtable.com/create/tokens</a> → « Create token » · nom : <i>LFC signature client</i> · droit : <b>data.records:write</b> uniquement · accès : la base <b>LFC Signatures</b>. Copiez la clé et collez-la ici :
@@ -2220,11 +2232,13 @@ function linkSetup(){const p=modal(`<div class="row"><h2 style="margin:0">Active
    </ol><div class="msg" id="stMsg"></div>`,true);
   const say=(x,e)=>{const m=$("stMsg");m.className="msg "+(e?"err":"ok");m.textContent=x};
   $("stSave").onclick=async()=>{const t=$("stTok").value.trim();if(!/^pat/.test(t))return say("La clé doit commencer par « pat ».",1);
-    try{await cfgWrite("sign_token",t);say("Clé enregistrée ✓. Passez à l’étape 2, puis « Vérifier ».")}catch(e){say("Enregistrement impossible ("+e.message+").",1)}};
-  $("stTest").onclick=async()=>{let tok="";try{tok=await cfgRead("sign_token")}catch(e){}
-    const r=await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}?pageSize=1`,{headers:{Authorization:"Bearer "+atToken()}}).catch(()=>null);
+    say("Test de la clé…");const pb=await testDepot(t);if(pb)return say(pb,1);
+    try{await cfgWrite("sign_token",t);say("Clé testée et enregistrée ✓. Passez à l’étape 2, puis « Vérifier ».")}catch(e){say("Enregistrement impossible ("+e.message+").",1)}};
+  $("stTest").onclick=async()=>{say("Vérification…");let tok="";try{tok=await cfgRead("sign_token")}catch(e){}
     if(!tok)return say("Étape 1 : enregistrez d’abord la clé « dépôt de signature ».",1);
-    if(!r||!r.ok)return say("Étape 2 : votre clé principale n’a pas encore accès à la base « LFC Signatures ».",1);
+    const pb=await testDepot(tok);if(pb)return say("Étape 1 : "+pb,1);
+    const r=await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}?pageSize=1`,{headers:{Authorization:"Bearer "+atToken()}}).catch(()=>null);
+    if(!r||!r.ok)return say("Étape 2 : votre clé principale n’a pas encore accès à la base « LFC Signatures » (droit data.records:read).",1);
     say("Tout est prêt ✓");setTimeout(openLink,700)};
 }
 
@@ -2254,10 +2268,14 @@ async function checkRemote(manual){if(REMOTE||checking||!atToken()||typeof LIST=
 async function sendRemote(sig,btn,err){btn.disabled=true;btn.textContent="Envoi de la signature…";
   try{const r=await fetch(`https://api.airtable.com/v0/${SIGN.base}/${SIGN.table}`,{method:"POST",headers:{Authorization:"Bearer "+REMOTE.tok,"Content-Type":"application/json"},
       body:JSON.stringify({typecast:true,records:[{fields:{Lien:REMOTE.id,Devis:S.id,"Numéro":S.numero||"",Secret:REMOTE.sec,Nom:sig.nom,Signature:JSON.stringify({img:sig.img,w:sig.w,h:sig.h}),Mode:sig.mode,Date:new Date(sig.at).toISOString(),Empreinte:sig.hash,Appareil:sig.appareil}}]})});
-    if(!r.ok)throw new Error("HTTP "+r.status);
+    if(!r.ok){let t="";try{const j=await r.json();t=(j.error&&(j.error.type||j.error.message||j.error))||""}catch(e){}
+      const ex=new Error(String(t||""));ex.status=r.status;throw ex}
     S.contrat.dateSign=dShort(todayIso());S.signature=sig;try{localStorage.setItem("lfc_signe_"+REMOTE.id,JSON.stringify(sig))}catch(e){}
     closeModal();clientDone()}
-  catch(e){btn.disabled=false;btn.textContent="Signer le contrat";err("La signature n’a pas pu être envoyée. Vérifiez votre connexion internet et réessayez.")}}
+  catch(e){btn.disabled=false;btn.textContent="Signer le contrat";
+    err(!e.status?"La signature n’a pas pu être envoyée. Vérifiez votre connexion internet et réessayez."
+      :e.status===401||e.status===403||e.status===404?"Ce lien de signature n’est pas encore activé (erreur "+e.status+"). Prévenez Les Frères Cohen, ils vous enverront un nouveau lien."
+      :"La signature n’a pas pu être enregistrée (erreur "+e.status+(e.message?" · "+e.message:"")+"). Réessayez dans un instant.")}}
 function clientDone(){renderContratPreview();const b=$("clientBar");if(b)b.innerHTML=`<div class="cdone">✓ Contrat signé. Merci ${esc(S.signature.nom)} !<small>Les Frères Cohen ont bien reçu votre signature et vous enverront votre exemplaire.</small></div>`;
   const i=$("clientIntro");if(i)i.innerHTML=`<b>Merci, votre contrat est signé ✓</b><br>Les Frères Cohen ont bien reçu votre signature. Vous recevrez votre exemplaire signé par les deux parties.`}
 async function startClient(){document.documentElement.classList.add("signer-mode");
